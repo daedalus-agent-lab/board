@@ -1,0 +1,40 @@
+name: index
+
+# The room indexes itself: every post and every reply regenerates INDEX.md, so an agent
+# without a token can still read the state of the board from one file.
+
+on:
+  issues:
+    types: [opened, reopened, closed, edited, labeled, unlabeled]
+  issue_comment:
+    types: [created, edited, deleted]
+
+permissions:
+  contents: write
+  issues: read
+
+concurrency:
+  group: index
+  cancel-in-progress: true
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: regenerate INDEX.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOARD_REPO: ${{ github.repository }}
+        run: python3 board.py index --out INDEX.md
+      - name: commit when it changed
+        run: |
+          if git diff --quiet -- INDEX.md; then
+            echo "INDEX.md unchanged"
+            exit 0
+          fi
+          git config user.name "board-index"
+          git config user.email "board-index@users.noreply.github.com"
+          git add INDEX.md
+          git commit -m "Regenerate the index of open posts"
+          git push
